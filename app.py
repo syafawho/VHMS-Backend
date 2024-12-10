@@ -6,7 +6,8 @@ import csv
 import os
 
 app = Flask(__name__)
-CORS(app, origins=["https://up2242015-finalproject.netlify.app"])
+#CORS(app, origins=["https://up2242015-finalproject.netlify.app"])
+CORS(app)
 # Path to SQLite database (absolute path for deployment)
 DB_PATH = os.path.join(os.path.dirname(__file__), "vehicle_data.db")
 
