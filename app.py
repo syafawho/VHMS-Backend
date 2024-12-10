@@ -6,10 +6,12 @@ import csv
 import os
 
 app = Flask(__name__)
-CORS(app)
 
-# Path to SQLite database (use absolute path for deployment)
-DB_PATH = os.path.join(os.path.dirname(__file__), "vehicle_data.db")
+# Update CORS to allow only your Netlify frontend
+CORS(app, origins=["https://your-netlify-url.netlify.app"])
+
+# Path to SQLite database (absolute path for deployment)
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "vehicle_data.db")
 
 # Initialize the database
 def init_db():
@@ -39,7 +41,6 @@ init_db()
 @app.route("/api/data", methods=["POST"])
 def receive_data():
     data = request.get_json()
-
     print(f"[{datetime.datetime.now()}] Received Data: {data}")
 
     data_with_timestamp = {
@@ -107,8 +108,7 @@ def download_csv():
     conn.close()
 
     # Prepare CSV data
-    output = []
-    output.append(["ID", "Timestamp", "Latitude", "Longitude", "Flame", "Smoke", "Distance", "Acc X", "Acc Y", "Acc Z"])
+    output = [["ID", "Timestamp", "Latitude", "Longitude", "Flame", "Smoke", "Distance", "Acc X", "Acc Y", "Acc Z"]]
     output.extend(rows)
 
     # Convert to CSV format
