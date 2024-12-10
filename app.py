@@ -1,128 +1,69 @@
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import datetime
-import sqlite3
 import csv
-import os
+import io  # For in-memory file handling
 
 app = Flask(__name__)
 #CORS(app, origins=["https://up2242015-finalproject.netlify.app"])
 CORS(app)
-# Path to SQLite database (absolute path for deployment)
-DB_PATH = os.path.join(os.path.dirname(__file__), "vehicle_data.db")
 
-# Initialize the database
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS data_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        timestamp TEXT NOT NULL,
-        latitude REAL NOT NULL,
-        longitude REAL NOT NULL,
-        flame REAL NOT NULL,
-        smoke REAL NOT NULL,
-        distance REAL NOT NULL,
-        acc_x REAL NOT NULL,
-        acc_y REAL NOT NULL,
-        acc_z REAL NOT NULL
-    )
-    """)
-    conn.commit()
-    conn.close()
+# In-memory storage (can replace with database later)
+data_log = []
 
-# Call the function to initialize the database
-init_db()
+# Default route to check server status
+@app.route("/")
+def home():
+    return "ESP32 Flask Backend is running!"
 
-# API to receive data from ESP32
+# API endpoint to receive data from ESP32
 @app.route("/api/data", methods=["POST"])
 def receive_data():
+    # Parse the incoming JSON payload
     data = request.get_json()
 
+    # Log received data to console
     print(f"[{datetime.datetime.now()}] Received Data: {data}")
 
+    # Add timestamp to the received data
     data_with_timestamp = {
         "timestamp": datetime.datetime.now().isoformat(),
         **data
     }
 
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-    INSERT INTO data_log (timestamp, latitude, longitude, flame, smoke, distance, acc_x, acc_y, acc_z)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        data_with_timestamp["timestamp"],
-        data_with_timestamp.get("latitude", 0),
-        data_with_timestamp.get("longitude", 0),
-        data_with_timestamp.get("flame", 0),
-        data_with_timestamp.get("smoke", 0),
-        data_with_timestamp.get("distance", 0),
-        data_with_timestamp.get("acc_x", 0),
-        data_with_timestamp.get("acc_y", 0),
-        data_with_timestamp.get("acc_z", 0)
-    ))
-    conn.commit()
-    conn.close()
+    # Store in in-memory log (you can later store in a file or database)
+    data_log.append(data_with_timestamp)
 
+    # Send a response back to the ESP32
     return jsonify({
         "status": "success",
-        "message": "Data received and saved to database!",
+        "message": "Data received!",
         "received": data_with_timestamp
     }), 200
 
-# API to retrieve data logs
+# API endpoint to retrieve the data log (for debugging or front-end)
 @app.route("/api/log", methods=["GET"])
 def get_log():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM data_log ORDER BY timestamp DESC")
-    rows = cursor.fetchall()
-    conn.close()
+    return jsonify(data_log), 200
 
-    data = [
-        {
-            "id": row[0],
-            "timestamp": row[1],
-            "latitude": row[2],
-            "longitude": row[3],
-            "flame": row[4],
-            "smoke": row[5],
-            "distance": row[6],
-            "acc_x": row[7],
-            "acc_y": row[8],
-            "acc_z": row[9]
-        } for row in rows
-    ]
-    return jsonify(data), 200
-
-# API to download logs as a CSV
+# API endpoint to download the data log as CSV
 @app.route("/api/download_csv", methods=["GET"])
 def download_csv():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM data_log ORDER BY timestamp DESC")
-    rows = cursor.fetchall()
-    conn.close()
+    # Create an in-memory file
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=["timestamp"] + list(data_log[0].keys() if data_log else []))
+    
+    # Write header and rows
+    writer.writeheader()
+    writer.writerows(data_log)
 
-    output = []
-    output.append(["ID", "Timestamp", "Latitude", "Longitude", "Flame", "Smoke", "Distance", "Acc X", "Acc Y", "Acc Z"])
-    output.extend(rows)
-
-    csv_data = "\n".join([",".join(map(str, row)) for row in output])
-
+    # Prepare the response
+    output.seek(0)
     return Response(
-        csv_data,
+        output,
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment;filename=historical_data.csv"}
     )
 
-@app.route("/")
-def home():
-    return "ESP32 Flask Backend with SQLite is running!"
-
 if __name__ == "__main__":
-    import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+    app.run(debug=True)
