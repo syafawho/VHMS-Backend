@@ -3,6 +3,7 @@ from flask_cors import CORS
 import sqlite3
 import datetime
 import csv
+import io
 import os
 
 app = Flask(__name__)
@@ -95,12 +96,16 @@ def download_csv():
     conn.close()
 
     # Prepare CSV data
-    output = csv.writer(open("historical_data.csv", "w", newline=""))
-    output.writerow(["ID", "Timestamp", "Latitude", "Longitude", "Flame", "Smoke", "Distance", "Acc X", "Acc Y", "Acc Z"])
-    output.writerows(rows)
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["ID", "Timestamp", "Latitude", "Longitude", "Flame", "Smoke", "Distance", "Acc X", "Acc Y", "Acc Z"])
+    writer.writerows(rows)
+
+    # Move to the beginning of the StringIO object
+    output.seek(0)
 
     return Response(
-        open("historical_data.csv", "r").read(),
+        output,
         mimetype="text/csv",
         headers={"Content-Disposition": "attachment;filename=historical_data.csv"}
     )
@@ -110,6 +115,5 @@ def home():
     return "ESP32 Flask Backend with In-Memory Log and SQLite!"
 
 if __name__ == "__main__":
-    import os
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
