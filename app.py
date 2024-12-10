@@ -5,8 +5,8 @@ import csv
 import io  # For in-memory file handling
 
 app = Flask(__name__)
-#CORS(app, origins=["https://up2242015-finalproject.netlify.app"])
-CORS(app)
+CORS(app, origins=["https://up2242015-finalproject.netlify.app"])
+#CORS(app)
 
 # In-memory storage (can replace with database later)
 data_log = []
